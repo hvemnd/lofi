@@ -1,0 +1,20 @@
+# NOOK build settings (fm1-base tools/build.py)
+name = "NOOK"
+id_prefix = "FM-1_57"           # package identity: dev builds FM-1_5700 (check it is free before a public release)
+usb_manufacturer = "NOOK"
+usb_product = "NOOK FM-1"
+o2 = ["dsp/lofi.c"]             # the band, at -O2
+include = ["dsp"]
+vendored = ["fm1-base/"]        # fm1-base is a submodule inside the app: its own checks are its own
+words = "words.tsv"
+font_full = ["M"]               # lower case in the medium font: chord names (Am9, Cmaj7, 9sus)
+ble = false
+tagline = "lo-fi to jam over"
+author = "YOUR NAME"
+description = "NOOK turns the FM-1 into a lo-fi band to jam over on guitar: 12 moods, each a key, a scale and a chord loop, with a generative electric piano and bass that make up their parts every bar, 20 drum patterns, and a tape that crackles and wobbles. The keys set the key; the screen is a pixel-art room with a window onto one of eight views, a cat on the sill who keeps time, the chord now, the scale and a fretboard map."
+tags = ["generative", "drum-machine", "chords", "groovebox"]
+install = "https://hvemnd.github.io/lofi/install/"
+screenshot = "docs/img/screen.png"
+repo = "https://github.com/hvemnd/lofi"
+licence = "MIT"
+credits = "Built on fm1-base (Charles Vestal) and felucca-bsp (Leo Kuroshita, Hügelton Instruments)."

@@ -1,0 +1,90 @@
+# Builds the NOOK firmware (nook.fwsc, installable on an FM-1) on GitHub's machines, which can reach JieLi's
+# toolchain server, after running the host simulator's tests. Also builds the browser emulator.
+# Result: the Actions tab > the run > "Artifacts" > nook-firmware (and nook-emulator).
+# A tag vX.Y.Z pushed makes a release build (nook-X.Y.Z.fwsc) and a GitHub release with it.
+name: Build firmware
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: fm1-base (if the submodule is missing)
+        run: bash tools/setup.sh
+
+      - name: Tools
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q libtinfo5 libncurses5 xz-utils libfribidi0 libraqm0
+          pip install -q Pillow fonttools ziglang
+
+      - name: Host simulator tests
+        run: |
+          python3 fm1-base/tools/build.py . --host
+          build/host/nook_host tests/basic.txt build/host
+          build/host/nook_host tests/themes.txt build/host
+
+      - name: Browser emulator
+        run: bash tools/build_web.sh
+
+      - name: JieLi toolchain
+        run: bash fm1-base/tools/get_toolchain.sh "$HOME/.jieli"
+
+      - name: AC79 SDK (the three files the package needs)
+        run: |
+          SDK="$HOME/.jieli/ac79-sdk"
+          if ! bash fm1-base/bsp/tools/get_sdk.sh "$SDK"; then
+            rm -rf "$SDK"
+            git clone --depth 1 --branch AC79NN_SDK_V1.2.1_2023-12-13 --filter=blob:none --sparse \
+              https://gitee.com/Jieli-Tech/fw-AC79_AIoT_SDK.git "$SDK"
+            git -C "$SDK" sparse-checkout set cpu/wl82/tools
+          fi
+          ls -la "$SDK/cpu/wl82/tools/uboot.boot" "$SDK/cpu/wl82/tools/cfg_tool.bin" "$SDK/cpu/wl82/tools/cfg/eq_cfg_hw.bin"
+
+      - name: Firmware
+        run: |
+          export JIELI_TOOLCHAIN="$HOME/.jieli/toolchain" AC79_SDK="$HOME/.jieli/ac79-sdk"
+          set -o pipefail
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            python3 fm1-base/tools/build.py . --release "${GITHUB_REF_NAME#v}" 2>&1 | tee build.log
+          else
+            python3 fm1-base/tools/build.py . 2>&1 | tee build.log
+          fi
+
+      - name: Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          V="${GITHUB_REF_NAME#v}"
+          gh release create "$GITHUB_REF_NAME" "build/nook-$V.fwsc" --title "NOOK $V" \
+            --notes "NOOK $V: a lo-fi band for the FM-1 to jam over. Install with the FM-1 Firmware Hub or fm1-base/tools/fm1_install.py."
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: nook-firmware
+          path: |
+            build/*.fwsc
+            build/*.bin
+            build/firmware.json
+            build/host/*.png
+            build/host/*.wav
+          if-no-files-found: warn
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: nook-emulator
+          path: build/emu/
